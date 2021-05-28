@@ -1,0 +1,43 @@
+{
+  "name": "react-native-app-console",
+  "version": "0.1.4",
+  "description": "App console for React Native",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "mocha --reporter spec",
+    "prepublish": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/murat-mehmet/react-native-app-console.git"
+  },
+  "keywords": [
+    "react",
+    "native",
+    "console"
+  ],
+  "author": "murat-mehmet",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/murat-mehmet/react-native-app-console/issues"
+  },
+  "homepage": "https://github.com/murat-mehmet/react-native-app-console#readme",
+  "devDependencies": {
+    "@types/lodash": "^4.14.170",
+    "@types/react-native": "^0.64.7",
+    "chai": "^4.2.0",
+    "mocha": "^7.0.0",
+    "react": "^16.14.0",
+    "react-native": "^0.63.4",
+    "typescript": "^3.9.7"
+  },
+  "resolutions": {
+    "@types/react": "^16"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^1.15.4",
+    "lodash": "^4.17.21"
+  }
+}
