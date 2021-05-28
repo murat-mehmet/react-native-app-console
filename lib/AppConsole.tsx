@@ -39,7 +39,6 @@ export class AppConsole extends Component<Props> {
 
 
     componentDidMount() {
-        console.log('setting instance')
         instanceWrapper.instance = this;
         (async () => {
             const commands = JSON.parse(await AsyncStorage.getItem('command-history') || '[]');

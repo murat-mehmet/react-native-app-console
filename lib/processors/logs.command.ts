@@ -40,7 +40,7 @@ export class LogsCommand extends ConsoleCommand {
                 log('Saved startup logging')
                 break;
             default:
-                this.listenConsole(log, session)
+                await this.listenConsole(log, session)
                 break;
         }
     }
