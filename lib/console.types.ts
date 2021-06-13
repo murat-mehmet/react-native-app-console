@@ -7,6 +7,10 @@ export interface SessionObject {
     readLineOpts?: ReadLineOptions,
     cancel?: boolean;
     onCancel?: () => any;
+    invitedConnection?: {
+        name: string,
+        url: string
+    }
 }
 
 export interface ReadLineOptions {

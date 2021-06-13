@@ -15,7 +15,8 @@ export class AppConsole extends Component<Props> {
         command: '',
         running: false,
         readLine: false,
-        readLineOpts: {} as ReadLineOptions
+        readLineOpts: {} as ReadLineOptions,
+        remoteConnected: false
     }
     timer;
     service: ConsoleService;
@@ -28,7 +29,7 @@ export class AppConsole extends Component<Props> {
             this.service = instanceWrapper.preparedService;
             const session = this.service.getSession();
             if (session.running && !session.readLineCallback) {
-                Object.assign(this.state,{
+                Object.assign(this.state, {
                     command: '',
                     logs: session.logs,
                     running: session.running,
@@ -36,7 +37,7 @@ export class AppConsole extends Component<Props> {
                     readLineOpts: session.readLineOpts
                 })
                 this.timer = setInterval(() => {
-                    Object.assign(this.state,{
+                    Object.assign(this.state, {
                         command: '',
                         logs: session.logs,
                         running: session.running,
@@ -47,7 +48,7 @@ export class AppConsole extends Component<Props> {
                         clearInterval(this.timer);
                 }, 300)
             } else {
-                Object.assign(this.state,{
+                Object.assign(this.state, {
                     command: '',
                     logs: session.logs,
                     running: session.running,
@@ -55,8 +56,7 @@ export class AppConsole extends Component<Props> {
                     readLineOpts: session.readLineOpts
                 })
             }
-        }
-        else {
+        } else {
             const consoleOptions = _.merge(DEFAULT_OPTIONS, this.props.options);
             if (consoleOptions.commands)
                 COMMANDS.ALL = [
@@ -197,6 +197,7 @@ export class AppConsole extends Component<Props> {
                 readLine: !!session.readLineCallback,
                 readLineOpts: session.readLineOpts
             })
+            this.checkRemoteConnection(session);
             this.timer = setInterval(() => {
                 this.setState({
                     command: '',
@@ -205,6 +206,7 @@ export class AppConsole extends Component<Props> {
                     readLine: !!session.readLineCallback,
                     readLineOpts: session.readLineOpts
                 })
+                this.checkRemoteConnection(session);
                 if (!session.running || session.readLineCallback)
                     clearInterval(this.timer);
             }, 300)
@@ -217,6 +219,77 @@ export class AppConsole extends Component<Props> {
                 readLineOpts: session.readLineOpts
             })
         }
+        this.checkRemoteConnection(session);
+    }
+    remoteStreamAction = async (session: SessionObject) => {
+        try {
+            const result = await fetch(session.invitedConnection.url + 'remote/stream', {
+                headers: {
+                    'content-type': 'application/json'
+                },
+                method: 'post',
+                body: JSON.stringify({
+                    name: session.invitedConnection.name,
+                    result: session.logs,
+                    running: session.running,
+                    readLine: !!session.readLineCallback,
+                    readLineOpts: session.readLineOpts
+                })
+            }).then(x => {
+                if (!x.ok)
+                    return x.json().then(y => {throw new Error(y.message)})
+                return x.json()
+            });
+            if (result.command)
+                this.setState({command: result.command}, this.submit);
+
+        } catch (e) {
+            session.logs += e + '\n';
+            this.setState({remoteConnected: false, logs: session.logs});
+            session.invitedConnection = null
+            this.remoteTimer = null;
+            return;
+        }
+        if (!session.running || !!session.readLineCallback)
+            this.remoteTimer = setTimeout(() => this.remoteStreamAction(session), 1000);
+        else
+            this.remoteTimer = null;
+    }
+
+    remoteTimer
+    checkRemoteConnection = (session: SessionObject) => {
+        if (session.invitedConnection) {
+            this.setState({remoteConnected: true});
+
+            if (!this.remoteTimer && (!session.running || !!session.readLineCallback))
+                this.remoteTimer = setTimeout(() => this.remoteStreamAction(session), 1000);
+            else {
+                this.remoteStreamAction(session);
+                this.remoteTimer = null;
+            }
+        }
+        else
+            this.setState({remoteConnected: false});
+    }
+    closeRemoteConnection = async () => {
+        const session = this.service.getSession();
+        if (session.invitedConnection) {
+            const result = await fetch(session.invitedConnection.url + 'remote/close', {
+                headers: {
+                    'content-type': 'application/json'
+                },
+                method: 'post',
+                body: JSON.stringify({
+                    name: session.invitedConnection.name,
+                })
+            });
+            this.setState({remoteConnected: false});
+            if (this.remoteTimer)
+                clearTimeout(this.remoteTimer);
+            session.invitedConnection = null
+            this.remoteTimer = null;
+
+        }
     }
 
     commandStore;
@@ -228,6 +301,13 @@ export class AppConsole extends Component<Props> {
                 {this.state.shown &&
                 <View style={styles.container}>
                     <SafeAreaView style={{flex: 1}}>
+                        {this.state.remoteConnected &&
+                        <View style={{backgroundColor: 'white'}}>
+                            <Text style={[styles.text, {color: 'black'}]}>This console is controlled by remote end</Text>
+                            <Text style={[styles.text, {color: 'black', paddingHorizontal: 10}]} onPress={this.closeRemoteConnection}>[ Close
+                                Connection ]</Text>
+                        </View>
+                        }
                         <ScrollView style={{flex: 1}} keyboardShouldPersistTaps={'always'}
 
                                     ref={ref => {this.scrollView = ref}}
