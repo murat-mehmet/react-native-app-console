@@ -12,12 +12,13 @@ export class LogsCommand extends ConsoleCommand {
     async prepare(): Promise<any> {
         const {injected} = this;
         await AsyncStorage.getItem('console-logs-startup')
-            .then(v => {
+            .then(async v => {
                 if (v == '1') {
                     const session = injected.consoleService.getSession();
                     session.cancel = false;
                     session.onCancel = null;
                     session.running = true;
+                    await this.injected.consoleService.consoleOptions.logs?.onListen?.call(this);
                     this.listenConsole(
                         (...text) => injected.consoleService.log(session, text.map(x => typeof x == "object" ? JSON.stringify(x, null, 2) : x).join(' ')),
                         session
@@ -40,6 +41,7 @@ export class LogsCommand extends ConsoleCommand {
                 log('Saved startup logging')
                 break;
             default:
+                await this.injected.consoleService.consoleOptions.logs?.onListen?.call(this);
                 await this.listenConsole(log, session)
                 break;
         }
@@ -49,7 +51,6 @@ export class LogsCommand extends ConsoleCommand {
         const originalLog = console.log;
         log('Listening logs')
 
-        this.injected.consoleService.consoleOptions.logs?.onListen?.call(this);
 
         console.log = function() {
             log(...arguments);

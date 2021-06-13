@@ -1,6 +1,6 @@
 {
   "name": "react-native-app-console",
-  "version": "0.1.7",
+  "version": "0.1.16",
   "description": "App console for React Native",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

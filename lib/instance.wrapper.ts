@@ -1,3 +1,5 @@
 export const instanceWrapper: {
-    instance?
+    instance?;
+    isPrepared?: boolean
+    preparedService?
 } = {}

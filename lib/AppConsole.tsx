@@ -24,17 +24,51 @@ export class AppConsole extends Component<Props> {
 
     constructor(props) {
         super(props);
-        const consoleOptions = _.merge(DEFAULT_OPTIONS, this.props.options);
-        if (consoleOptions.commands)
-            COMMANDS.ALL = [
-                ...COMMANDS.DEFAULT,
-                ...consoleOptions.commands
-            ]
-        this.service = new ConsoleService(consoleOptions);
-        this.service.onPrepare = () => {
+        if (instanceWrapper.preparedService) {
+            this.service = instanceWrapper.preparedService;
             const session = this.service.getSession();
-            this.updateState(session)
-        };
+            if (session.running && !session.readLineCallback) {
+                Object.assign(this.state,{
+                    command: '',
+                    logs: session.logs,
+                    running: session.running,
+                    readLine: !!session.readLineCallback,
+                    readLineOpts: session.readLineOpts
+                })
+                this.timer = setInterval(() => {
+                    Object.assign(this.state,{
+                        command: '',
+                        logs: session.logs,
+                        running: session.running,
+                        readLine: !!session.readLineCallback,
+                        readLineOpts: session.readLineOpts
+                    })
+                    if (!session.running || session.readLineCallback)
+                        clearInterval(this.timer);
+                }, 300)
+            } else {
+                Object.assign(this.state,{
+                    command: '',
+                    logs: session.logs,
+                    running: session.running,
+                    readLine: !!session.readLineCallback,
+                    readLineOpts: session.readLineOpts
+                })
+            }
+        }
+        else {
+            const consoleOptions = _.merge(DEFAULT_OPTIONS, this.props.options);
+            if (consoleOptions.commands)
+                COMMANDS.ALL = [
+                    ...COMMANDS.DEFAULT,
+                    ...consoleOptions.commands
+                ]
+            this.service = new ConsoleService(consoleOptions);
+            this.service.onPrepare = () => {
+                const session = this.service.getSession();
+                this.updateState(session)
+            };
+        }
     }
 
 
@@ -89,7 +123,6 @@ export class AppConsole extends Component<Props> {
         if (command == null)
             command = '';
 
-        this.commandStore.put(command);
 
         const escaped = command.replace(/\\\|/g, '\r\n');
         const cmds = escaped.split("|").filter(x => x)
@@ -117,12 +150,14 @@ export class AppConsole extends Component<Props> {
                 })
                 session.readLineCallback = null;
             } else {
+                this.commandStore.put(command);
+
                 session.cancel = false;
                 session.onCancel = null;
                 session.running = true;
                 (async () => {
                     if (!cmds.length) {
-                        session.logs += `app:/> `
+                        session.logs += `\napp:/> `
                     }
                     for (let i = 0; i < cmds.length; i++) {
                         let cmd = cmds[i];
@@ -197,7 +232,7 @@ export class AppConsole extends Component<Props> {
 
                                     ref={ref => {this.scrollView = ref}}
                                     onContentSizeChange={() => this.scrollView?.scrollToEnd({animated: true})}>
-                            <Text style={styles.text}>{`App Console | ${this.props.options.name} \n` + 'All rights reserved.\n'}</Text>
+                            <Text style={styles.text}>{`App Console | ${this.service.consoleOptions.name} \n` + 'All rights reserved.\n'}</Text>
                             <Text selectable style={styles.text}>{this.state.logs}</Text>
                             {!this.state.running &&
                             <View style={{flexDirection: 'row', alignItems: 'center'}}>
@@ -266,26 +301,43 @@ export class AppConsole extends Component<Props> {
             </>
         );
     }
+
+    static handleTap = (char?) => {
+        char = typeof char != 'string' ? '0' : char;
+        const fullPhrase = instanceWrapper.instance.service.consoleOptions.activation.phrase;
+        let nextValidChar = fullPhrase[instanceWrapper.instance.activationPhrase.length];
+        if (char != nextValidChar) {
+            instanceWrapper.instance.activationPhrase = '';
+            nextValidChar = fullPhrase[0];
+        }
+        if (char == nextValidChar)
+            instanceWrapper.instance.activationPhrase += char;
+
+        if (instanceWrapper.instance.activationPhrase == fullPhrase) {
+            instanceWrapper.instance.activationPhrase = '';
+            instanceWrapper.instance.setState({enabled: true});
+            AsyncStorage.setItem('console-enabled', '1')
+        }
+    }
+
+    static prepare = async (options: ConsoleOptions) => {
+        return new Promise<void>(r => {
+            const consoleOptions = _.merge(DEFAULT_OPTIONS, options);
+            if (consoleOptions.commands)
+                COMMANDS.ALL = [
+                    ...COMMANDS.DEFAULT,
+                    ...consoleOptions.commands
+                ]
+            const service = new ConsoleService(consoleOptions);
+            service.onPrepare = () => {
+                instanceWrapper.preparedService = service;
+                instanceWrapper.isPrepared = true;
+                r();
+            };
+        })
+    }
 }
 
-
-export const handleDeveloperTap = (char?) => {
-    char = typeof char != 'string' ? '0' : char;
-    const fullPhrase = instanceWrapper.instance.service.consoleOptions.activation.phrase;
-    let nextValidChar = fullPhrase[instanceWrapper.instance.activationPhrase.length];
-    if (char != nextValidChar) {
-        instanceWrapper.instance.activationPhrase = '';
-        nextValidChar = fullPhrase[0];
-    }
-    if (char == nextValidChar)
-        instanceWrapper.instance.activationPhrase += char;
-
-    if (instanceWrapper.instance.activationPhrase == fullPhrase) {
-        instanceWrapper.instance.activationPhrase = '';
-        instanceWrapper.instance.setState({enabled: true});
-        AsyncStorage.setItem('console-enabled', '1')
-    }
-}
 
 const styles = StyleSheet.create({
     container: {
@@ -323,5 +375,5 @@ const styles = StyleSheet.create({
 });
 
 interface Props {
-    options: ConsoleOptions
+    options?: ConsoleOptions
 }
