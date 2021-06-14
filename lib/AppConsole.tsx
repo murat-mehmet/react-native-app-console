@@ -36,17 +36,6 @@ export class AppConsole extends Component<Props> {
                     readLine: !!session.readLineCallback,
                     readLineOpts: session.readLineOpts
                 })
-                this.timer = setInterval(() => {
-                    Object.assign(this.state, {
-                        command: '',
-                        logs: session.logs,
-                        running: session.running,
-                        readLine: !!session.readLineCallback,
-                        readLineOpts: session.readLineOpts
-                    })
-                    if (!session.running || session.readLineCallback)
-                        clearInterval(this.timer);
-                }, 300)
             } else {
                 Object.assign(this.state, {
                     command: '',
@@ -56,6 +45,8 @@ export class AppConsole extends Component<Props> {
                     readLineOpts: session.readLineOpts
                 })
             }
+
+            this.checkRemoteConnection(session, true);
         } else {
             const consoleOptions = _.merge(DEFAULT_OPTIONS, this.props.options);
             if (consoleOptions.commands)
@@ -74,6 +65,22 @@ export class AppConsole extends Component<Props> {
 
     componentDidMount() {
         instanceWrapper.instance = this;
+
+        const session = this.service.getSession();
+        if (session.running && !session.readLineCallback) {
+            this.timer = setInterval(() => {
+                this.setState({
+                    command: '',
+                    logs: session.logs,
+                    running: session.running,
+                    readLine: !!session.readLineCallback,
+                    readLineOpts: session.readLineOpts
+                })
+                this.checkRemoteConnection(session);
+                if (!session.running || session.readLineCallback)
+                    clearInterval(this.timer);
+            }, 1000)
+        }
         (async () => {
             const commands = JSON.parse(await AsyncStorage.getItem('command-history') || '[]');
             this.commandStore = {
@@ -128,7 +135,6 @@ export class AppConsole extends Component<Props> {
         const cmds = escaped.split("|").filter(x => x)
             .map(x => x.replace(/\r\n/g, '|'));
         const session = this.service.getSession();
-
         if (command == 'ctrl+c') {
             session.cancel = true;
             session.onCancel?.call(this);
@@ -198,6 +204,8 @@ export class AppConsole extends Component<Props> {
                 readLineOpts: session.readLineOpts
             })
             this.checkRemoteConnection(session);
+
+            clearInterval(this.timer);
             this.timer = setInterval(() => {
                 this.setState({
                     command: '',
@@ -209,7 +217,7 @@ export class AppConsole extends Component<Props> {
                 this.checkRemoteConnection(session);
                 if (!session.running || session.readLineCallback)
                     clearInterval(this.timer);
-            }, 300)
+            }, 1000)
         } else {
             this.setState({
                 command: '',
@@ -223,23 +231,39 @@ export class AppConsole extends Component<Props> {
     }
     remoteStreamAction = async (session: SessionObject) => {
         try {
-            const result = await fetch(session.invitedConnection.url + 'remote/stream', {
-                headers: {
-                    'content-type': 'application/json'
-                },
-                method: 'post',
-                body: JSON.stringify({
-                    name: session.invitedConnection.name,
-                    result: session.logs,
-                    running: session.running,
-                    readLine: !!session.readLineCallback,
-                    readLineOpts: session.readLineOpts
-                })
-            }).then(x => {
-                if (!x.ok)
-                    return x.json().then(y => {throw new Error(y.message)})
-                return x.json()
-            });
+            if (!session.invitedConnection) throw new Error('Connection was closed by remote end')
+            let retryCount = 0;
+            let result: any;
+            while (++retryCount < 3) {
+                let apiError=false;
+                result = await fetch(session.invitedConnection.url + 'remote/stream', {
+                    headers: {
+                        'content-type': 'application/json'
+                    },
+                    method: 'post',
+                    body: JSON.stringify({
+                        name: session.invitedConnection.name,
+                        result: session.logs,
+                        running: session.running,
+                        readLine: !!session.readLineCallback,
+                        readLineOpts: session.readLineOpts
+                    })
+                }).then(x => {
+                    if (!x.ok)
+                        return x.json().then(y => {
+                            apiError = true;
+                            throw new Error(y.message)
+                        });
+                    return x.json()
+                }).catch(e => new Error(e.message || e?.toString()));
+                if (apiError)
+                    throw result;
+                if (!(result instanceof Error))
+                    break;
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            if (retryCount == 3)
+                throw new Error('Cannot connect to remote end');
             if (result.command)
                 this.setState({command: result.command}, this.submit);
 
@@ -250,26 +274,26 @@ export class AppConsole extends Component<Props> {
             this.remoteTimer = null;
             return;
         }
-        if (!session.running || !!session.readLineCallback)
-            this.remoteTimer = setTimeout(() => this.remoteStreamAction(session), 1000);
-        else
-            this.remoteTimer = null;
+        this.remoteTimer = setTimeout(() => this.remoteStreamAction(session), 1000);
     }
 
     remoteTimer
-    checkRemoteConnection = (session: SessionObject) => {
+    checkRemoteConnection = (session: SessionObject, assign?) => {
         if (session.invitedConnection) {
-            this.setState({remoteConnected: true});
+            if (assign)
+                Object.assign(this.state, {remoteConnected: true})
+            else
+                this.setState({remoteConnected: true});
 
-            if (!this.remoteTimer && (!session.running || !!session.readLineCallback))
-                this.remoteTimer = setTimeout(() => this.remoteStreamAction(session), 1000);
-            else {
+            if (!this.remoteTimer) {
                 this.remoteStreamAction(session);
-                this.remoteTimer = null;
             }
+        } else {
+            if (assign)
+                Object.assign(this.state, {remoteConnected: false})
+            else
+                this.setState({remoteConnected: false});
         }
-        else
-            this.setState({remoteConnected: false});
     }
     closeRemoteConnection = async () => {
         const session = this.service.getSession();
@@ -308,67 +332,74 @@ export class AppConsole extends Component<Props> {
                                 Connection ]</Text>
                         </View>
                         }
-                        <ScrollView style={{flex: 1}} keyboardShouldPersistTaps={'always'}
+                        <View style={{flex: 1}}>
+                            <ScrollView style={{flex: 1}} keyboardShouldPersistTaps={'always'}
 
-                                    ref={ref => {this.scrollView = ref}}
-                                    onContentSizeChange={() => this.scrollView?.scrollToEnd({animated: true})}>
-                            <Text style={styles.text}>{`App Console | ${this.service.consoleOptions.name} \n` + 'All rights reserved.\n'}</Text>
-                            <Text selectable style={styles.text}>{this.state.logs}</Text>
-                            {!this.state.running &&
-                            <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                <Text style={styles.text}>{'app:/> '}</Text>
-                                <TextInput numberOfLines={1} style={[styles.text, styles.textInput]} autoFocus
-                                           autoCorrect={false}
-                                           autoCapitalize={'none'}
-                                           value={this.state.command}
-                                           blurOnSubmit={false}
-                                           onSubmitEditing={this.submit}
-                                           onChangeText={command => this.setState({command})} />
-                            </View>
-                            }
-                            {this.state.running && this.state.readLine && !this.state.readLineOpts.select &&
-                            <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                <Text style={styles.text}>{this.state.readLineOpts['title']}</Text>
-                                <TextInput numberOfLines={1} style={[styles.text, styles.textInput]} autoFocus
-                                           autoCorrect={false}
-                                           autoCapitalize={'none'}
-                                           value={this.state.command}
-                                           blurOnSubmit={false}
-                                           secureTextEntry={this.state.readLineOpts.secure}
-                                           onSubmitEditing={this.submit}
-                                           onChangeText={command => this.setState({command})} />
-                            </View>
-                            }
-                            {this.state.running && this.state.readLine && !!this.state.readLineOpts.select &&
-                            <View>
-                                <Text style={styles.text}>{this.state.readLineOpts['title']}</Text>
-                                {(this.state.readLineOpts.select as any[]).map((x, i) => (
-                                    <TouchableOpacity key={i} style={[styles.selectButton, i > 0 && {borderTopWidth: 0}]} onPress={() => {
-                                        let command = Array.isArray(x) ? x[0] : x;
-                                        this.setState({command}, this.submit);
-                                    }}>
-                                        <Text style={styles.text}>{Array.isArray(x) ? x[1] : x}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                            }
-                        </ScrollView>
-                        <View style={{flexDirection: 'row'}}>
-                            {this.state.running ?
-                                <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
-                                    this.setState({command: 'ctrl+c'}, this.submit)
-                                }}>[ Cancel ]</Text>
-                                :
-                                <>
+                                        ref={ref => {this.scrollView = ref}}
+                                        onContentSizeChange={() => this.scrollView?.scrollToEnd({animated: true})}>
+                                <Text style={styles.text}>{`App Console | ${this.service.consoleOptions.name} \n` + 'All rights reserved.\n'}</Text>
+                                <Text selectable style={styles.text}>{this.state.logs}</Text>
+                                {!this.state.running &&
+                                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                    <Text style={styles.text}>{'app:/> '}</Text>
+                                    <TextInput numberOfLines={1} style={[styles.text, styles.textInput]} autoFocus
+                                               autoCorrect={false}
+                                               autoCapitalize={'none'}
+                                               value={this.state.command}
+                                               blurOnSubmit={false}
+                                               onSubmitEditing={this.submit}
+                                               editable={!this.state.remoteConnected}
+                                               onChangeText={command => this.setState({command})} />
+                                </View>
+                                }
+                                {this.state.running && this.state.readLine && !this.state.readLineOpts.select &&
+                                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                    <Text style={styles.text}>{this.state.readLineOpts['title']}</Text>
+                                    <TextInput numberOfLines={1} style={[styles.text, styles.textInput]} autoFocus
+                                               autoCorrect={false}
+                                               autoCapitalize={'none'}
+                                               value={this.state.command}
+                                               blurOnSubmit={false}
+                                               secureTextEntry={this.state.readLineOpts.secure}
+                                               onSubmitEditing={this.submit}
+                                               editable={!this.state.remoteConnected}
+                                               onChangeText={command => this.setState({command})} />
+                                </View>
+                                }
+                                {this.state.running && this.state.readLine && !!this.state.readLineOpts.select &&
+                                <View>
+                                    <Text style={styles.text}>{this.state.readLineOpts['title']}</Text>
+                                    {(this.state.readLineOpts.select as any[]).map((x, i) => (
+                                        <TouchableOpacity key={i} style={[styles.selectButton, i > 0 && {borderTopWidth: 0}]} onPress={() => {
+                                            let command = Array.isArray(x) ? x[0] : x;
+                                            this.setState({command}, this.submit);
+                                        }}>
+                                            <Text style={styles.text}>{Array.isArray(x) ? x[1] : x}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                                }
+                            </ScrollView>
+                            <View style={{flexDirection: 'row'}}>
+                                {this.state.running ?
                                     <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
-                                        const val = this.commandStore.get(true);
-                                        this.setState({command: val})
-                                    }}>[ Previous ]</Text>
-                                    <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
-                                        const val = this.commandStore.get(false);
-                                        this.setState({command: val})
-                                    }}>[ Next ]</Text>
-                                </>
+                                        this.setState({command: 'ctrl+c'}, this.submit)
+                                    }}>[ Cancel ]</Text>
+                                    :
+                                    <>
+                                        <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
+                                            const val = this.commandStore.get(true);
+                                            this.setState({command: val})
+                                        }}>[ Previous ]</Text>
+                                        <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
+                                            const val = this.commandStore.get(false);
+                                            this.setState({command: val})
+                                        }}>[ Next ]</Text>
+                                    </>
+                                }
+                            </View>
+                            {this.state.remoteConnected &&
+                            <View style={[StyleSheet.absoluteFillObject, {backgroundColor: '#00000033'}]} />
                             }
                         </View>
                     </SafeAreaView>

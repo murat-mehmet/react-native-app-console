@@ -35,8 +35,8 @@ export function generateTable(rows_, opts?) {
         return acc;
     }, []);
 
-    return map(rows, function (row) {
-        return map(row, function (c, ix) {
+    return map(rows, function(row) {
+        return map(row, function(c, ix) {
             const n = (sizes[ix] - stringLength(c)) || 0;
             const s = Array(Math.max(n + 1, 1)).join(' ');
             if (align[ix] === 'r' || align[ix] === '.') {
@@ -53,12 +53,12 @@ export function generateTable(rows_, opts?) {
     }).join('\n');
 }
 
-function dotindex (c) {
+function dotindex(c) {
     const m = /\.[^.]*$/.exec(c);
     return m ? m.index + 1 : c.length;
 }
 
-function reduce (xs, f, init) {
+function reduce(xs, f, init) {
     if (xs.reduce) return xs.reduce(f, init);
     let i = 0;
     const acc = arguments.length >= 3 ? init : xs[i++];
@@ -68,14 +68,14 @@ function reduce (xs, f, init) {
     return acc;
 }
 
-function forEach (xs, f) {
+function forEach(xs, f) {
     if (xs.forEach) return xs.forEach(f);
     for (let i = 0; i < xs.length; i++) {
         f.call(xs, xs[i], i);
     }
 }
 
-function map (xs, f) {
+function map(xs, f) {
     if (xs.map) return xs.map(f);
     const res = [];
     for (let i = 0; i < xs.length; i++) {

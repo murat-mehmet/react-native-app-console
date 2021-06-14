@@ -5,6 +5,7 @@ export abstract class ConsoleCommand {
     description: string;
 
     abstract process(parameters: CommandProcessParameters);
+
     async prepare() {
 
     };

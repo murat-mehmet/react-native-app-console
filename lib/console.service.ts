@@ -127,6 +127,8 @@ export class ConsoleService {
                 } else if (arg[i] == ' ' && !wqs) {
                     if (w) parsedArgs.push(w);
                     w = '';
+                } else if (arg[i] == '\\' && (i == 0 || arg[i - 1] != '\\')) {
+
                 } else w += arg[i];
             }
             if (w) parsedArgs.push(w)
