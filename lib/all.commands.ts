@@ -1,6 +1,8 @@
 import {Type} from "./console.types";
 import {ClearScreenCommand, DisableCommand, EvaluateCommand, HelpCommand, InviteCommand, LogsCommand} from "./processors";
+import {AlertCommand} from "./processors/alert.command";
 import {ConsoleCommand} from "./processors/base/console.command";
+import {EchoCommand} from "./processors/echo.command";
 
 export const COMMANDS: {DEFAULT: Type<ConsoleCommand>[], ALL: Type<ConsoleCommand>[]} = {
     DEFAULT: [
@@ -9,7 +11,9 @@ export const COMMANDS: {DEFAULT: Type<ConsoleCommand>[], ALL: Type<ConsoleComman
         DisableCommand,
         LogsCommand,
         EvaluateCommand,
-        InviteCommand
+        InviteCommand,
+        AlertCommand,
+        EchoCommand,
     ],
     ALL: []
 };

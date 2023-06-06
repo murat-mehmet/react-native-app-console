@@ -1,10 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import _ from 'lodash';
 import React, {Component} from 'react';
-import {SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
+import {KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
 import {COMMANDS} from "./all.commands";
 import {ConsoleService} from "./console.service";
 import {ConsoleOptions, DEFAULT_OPTIONS, ReadArgMap, ReadArgOptions, ReadLineOptions, SessionObject} from "./console.types";
+import merge from 'lodash.merge';
+import DragItem from "./DragItem";
 import {instanceWrapper} from "./instance.wrapper";
 
 export class AppConsole extends Component<Props> {
@@ -48,7 +49,7 @@ export class AppConsole extends Component<Props> {
 
             this.checkRemoteConnection(session, true);
         } else {
-            const consoleOptions = _.merge(DEFAULT_OPTIONS, this.props.options);
+            const consoleOptions = merge(DEFAULT_OPTIONS, this.props.options);
             if (consoleOptions.commands)
                 COMMANDS.ALL = [
                     ...COMMANDS.DEFAULT,
@@ -235,12 +236,12 @@ export class AppConsole extends Component<Props> {
             let retryCount = 0;
             let result: any;
             while (++retryCount < 3) {
-                let apiError=false;
+                let apiError = false;
                 result = await fetch(session.invitedConnection.url + 'remote/stream', {
                     headers: {
                         'content-type': 'application/json'
                     },
-                    method: 'post',
+                    method: 'POST',
                     body: JSON.stringify({
                         name: session.invitedConnection.name,
                         result: session.logs,
@@ -251,21 +252,24 @@ export class AppConsole extends Component<Props> {
                 }).then(x => {
                     if (!x.ok)
                         return x.json().then(y => {
-                            apiError = true;
+                            if (x?.status == 400)
+                                apiError = true;
                             throw new Error(y.message)
                         });
                     return x.json()
                 }).catch(e => new Error(e.message || e?.toString()));
-                if (apiError)
+                if (apiError) {
                     throw result;
+                }
                 if (!(result instanceof Error))
                     break;
                 await new Promise(r => setTimeout(r, 1000));
             }
             if (retryCount == 3)
                 throw new Error('Cannot connect to remote end');
-            if (result.command)
+            if (result.command) {
                 this.setState({command: result.command}, this.submit);
+            }
 
         } catch (e) {
             session.logs += e + '\n';
@@ -332,7 +336,7 @@ export class AppConsole extends Component<Props> {
                                 Connection ]</Text>
                         </View>
                         }
-                        <View style={{flex: 1}}>
+                        <KeyboardAvoidingView style={{flex: 1}} behavior='padding' enabled={Platform.OS == 'ios'}>
                             <ScrollView style={{flex: 1}} keyboardShouldPersistTaps={'always'}
 
                                         ref={ref => {this.scrollView = ref}}
@@ -380,6 +384,7 @@ export class AppConsole extends Component<Props> {
                                 </View>
                                 }
                             </ScrollView>
+                            {!this.state.remoteConnected &&
                             <View style={{flexDirection: 'row'}}>
                                 {this.state.running ?
                                     <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
@@ -398,17 +403,25 @@ export class AppConsole extends Component<Props> {
                                     </>
                                 }
                             </View>
-                            {this.state.remoteConnected &&
-                            <View style={[StyleSheet.absoluteFillObject, {backgroundColor: '#00000033'}]} />
                             }
-                        </View>
+                            {this.state.remoteConnected &&
+                            <View style={[StyleSheet.absoluteFillObject, {backgroundColor: '#00000033'}]} pointerEvents="none" />
+                            }
+                        </KeyboardAvoidingView>
                     </SafeAreaView>
                     <StatusBar backgroundColor={'black'} barStyle='light-content' translucent={false} />
                 </View>
                 }
-                <TouchableOpacity style={styles.showButton} onPress={() => this.setState({shown: !this.state.shown})}>
-                    <Text style={[styles.text]}>{':/>'}</Text>
-                </TouchableOpacity>
+                <DragItem>
+                    <KeyboardAvoidingView
+                        style={styles.showButtonContainer}
+                        behavior="position"
+                        enabled={Platform.OS == 'ios'}>
+                        <TouchableOpacity style={styles.showButton} onPress={() => this.setState({shown: !this.state.shown})}>
+                            <Text style={[styles.text]}>{':/>'}</Text>
+                        </TouchableOpacity>
+                    </KeyboardAvoidingView>
+                </DragItem>
             </>
         );
     }
@@ -433,7 +446,7 @@ export class AppConsole extends Component<Props> {
 
     static prepare = async (options: ConsoleOptions) => {
         return new Promise<void>(r => {
-            const consoleOptions = _.merge(DEFAULT_OPTIONS, options);
+            const consoleOptions = merge(DEFAULT_OPTIONS, options);
             if (consoleOptions.commands)
                 COMMANDS.ALL = [
                     ...COMMANDS.DEFAULT,
@@ -457,7 +470,7 @@ const styles = StyleSheet.create({
         padding: 10
     },
     text: {
-        fontFamily: 'monospace',
+        fontFamily: Platform.OS == 'ios' ? 'Courier New' : 'monospace',
         color: 'white'
     },
     textInput: {
@@ -465,10 +478,11 @@ const styles = StyleSheet.create({
         padding: 0,
         margin: 0
     },
+    showButtonContainer: {
+        height: 60,
+        width: 60,
+    },
     showButton: {
-        position: 'absolute',
-        bottom: 15,
-        right: 15,
         height: 60,
         width: 60,
         borderRadius: 30,
