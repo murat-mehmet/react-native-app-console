@@ -1,12 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {Component} from 'react';
-import {KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
+import {KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
 import {COMMANDS} from "./all.commands";
 import {ConsoleService} from "./console.service";
 import {ConsoleOptions, DEFAULT_OPTIONS, ReadArgMap, ReadArgOptions, ReadLineOptions, SessionObject} from "./console.types";
 import merge from 'lodash.merge';
 import DragItem from "./DragItem";
 import {instanceWrapper} from "./instance.wrapper";
+import {SafeAreaView} from 'react-native-safe-area-context';
 
 export class AppConsole extends Component<Props> {
     state = {
@@ -329,85 +330,87 @@ export class AppConsole extends Component<Props> {
                 {this.state.shown &&
                 <View style={styles.container}>
                     <SafeAreaView style={{flex: 1}}>
-                        {this.state.remoteConnected &&
-                        <View style={{backgroundColor: 'white'}}>
-                            <Text style={[styles.text, {color: 'black'}]}>This console is controlled by remote end</Text>
-                            <Text style={[styles.text, {color: 'black', paddingHorizontal: 10}]} onPress={this.closeRemoteConnection}>[ Close
-                                Connection ]</Text>
-                        </View>
-                        }
-                        <KeyboardAvoidingView style={{flex: 1}} behavior='padding' enabled={Platform.OS == 'ios'}>
-                            <ScrollView style={{flex: 1}} keyboardShouldPersistTaps={'always'}
-
-                                        ref={ref => {this.scrollView = ref}}
-                                        onContentSizeChange={() => this.scrollView?.scrollToEnd({animated: true})}>
-                                <Text style={styles.text}>{`App Console | ${this.service.consoleOptions.name} \n` + 'All rights reserved.\n'}</Text>
-                                <Text selectable style={styles.text}>{this.state.logs}</Text>
-                                {!this.state.running &&
-                                <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                    <Text style={styles.text}>{'app:/> '}</Text>
-                                    <TextInput numberOfLines={1} style={[styles.text, styles.textInput]} autoFocus
-                                               autoCorrect={false}
-                                               autoCapitalize={'none'}
-                                               value={this.state.command}
-                                               blurOnSubmit={false}
-                                               onSubmitEditing={this.submit}
-                                               editable={!this.state.remoteConnected}
-                                               onChangeText={command => this.setState({command})} />
-                                </View>
-                                }
-                                {this.state.running && this.state.readLine && !this.state.readLineOpts.select &&
-                                <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                    <Text style={styles.text}>{this.state.readLineOpts['title']}</Text>
-                                    <TextInput numberOfLines={1} style={[styles.text, styles.textInput]} autoFocus
-                                               autoCorrect={false}
-                                               autoCapitalize={'none'}
-                                               value={this.state.command}
-                                               blurOnSubmit={false}
-                                               secureTextEntry={this.state.readLineOpts.secure}
-                                               onSubmitEditing={this.submit}
-                                               editable={!this.state.remoteConnected}
-                                               onChangeText={command => this.setState({command})} />
-                                </View>
-                                }
-                                {this.state.running && this.state.readLine && !!this.state.readLineOpts.select &&
-                                <View>
-                                    <Text style={styles.text}>{this.state.readLineOpts['title']}</Text>
-                                    {(this.state.readLineOpts.select as any[]).map((x, i) => (
-                                        <TouchableOpacity key={i} style={[styles.selectButton, i > 0 && {borderTopWidth: 0}]} onPress={() => {
-                                            let command = Array.isArray(x) ? x[0] : x;
-                                            this.setState({command}, this.submit);
-                                        }}>
-                                            <Text style={styles.text}>{Array.isArray(x) ? x[1] : x}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                                }
-                            </ScrollView>
-                            {!this.state.remoteConnected &&
-                            <View style={{flexDirection: 'row'}}>
-                                {this.state.running ?
-                                    <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
-                                        this.setState({command: 'ctrl+c'}, this.submit)
-                                    }}>[ Cancel ]</Text>
-                                    :
-                                    <>
-                                        <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
-                                            const val = this.commandStore.get(true);
-                                            this.setState({command: val})
-                                        }}>[ Previous ]</Text>
-                                        <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
-                                            const val = this.commandStore.get(false);
-                                            this.setState({command: val})
-                                        }}>[ Next ]</Text>
-                                    </>
-                                }
+                        <View style={{flex: 1}}>
+                            {this.state.remoteConnected &&
+                            <View style={{backgroundColor: 'white'}}>
+                                <Text style={[styles.text, {color: 'black'}]}>This console is controlled by remote end</Text>
+                                <Text style={[styles.text, {color: 'black', paddingHorizontal: 10}]} onPress={this.closeRemoteConnection}>[ Close
+                                    Connection ]</Text>
                             </View>
                             }
-                            {this.state.remoteConnected &&
-                            <View style={[StyleSheet.absoluteFillObject, {backgroundColor: '#00000033'}]} pointerEvents="none" />
-                            }
-                        </KeyboardAvoidingView>
+                            <KeyboardAvoidingView style={{flex: 1}} behavior='padding' enabled={Platform.OS == 'ios'}>
+                                <ScrollView style={{flex: 1}} keyboardShouldPersistTaps={'always'}
+
+                                            ref={ref => {this.scrollView = ref}}
+                                            onContentSizeChange={() => this.scrollView?.scrollToEnd({animated: true})}>
+                                    <Text style={styles.text}>{`App Console | ${this.service.consoleOptions.name} \n` + 'All rights reserved.\n'}</Text>
+                                    <Text selectable style={styles.text}>{this.state.logs}</Text>
+                                    {!this.state.running &&
+                                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                        <Text style={styles.text}>{'app:/> '}</Text>
+                                        <TextInput numberOfLines={1} style={[styles.text, styles.textInput]} autoFocus
+                                                autoCorrect={false}
+                                                autoCapitalize={'none'}
+                                                value={this.state.command}
+                                                blurOnSubmit={false}
+                                                onSubmitEditing={this.submit}
+                                                editable={!this.state.remoteConnected}
+                                                onChangeText={command => this.setState({command})} />
+                                    </View>
+                                    }
+                                    {this.state.running && this.state.readLine && !this.state.readLineOpts.select &&
+                                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                        <Text style={styles.text}>{this.state.readLineOpts['title']}</Text>
+                                        <TextInput numberOfLines={1} style={[styles.text, styles.textInput]} autoFocus
+                                                autoCorrect={false}
+                                                autoCapitalize={'none'}
+                                                value={this.state.command}
+                                                blurOnSubmit={false}
+                                                secureTextEntry={this.state.readLineOpts.secure}
+                                                onSubmitEditing={this.submit}
+                                                editable={!this.state.remoteConnected}
+                                                onChangeText={command => this.setState({command})} />
+                                    </View>
+                                    }
+                                    {this.state.running && this.state.readLine && !!this.state.readLineOpts.select &&
+                                    <View>
+                                        <Text style={styles.text}>{this.state.readLineOpts['title']}</Text>
+                                        {(this.state.readLineOpts.select as any[]).map((x, i) => (
+                                            <TouchableOpacity key={i} style={[styles.selectButton, i > 0 && {borderTopWidth: 0}]} onPress={() => {
+                                                let command = Array.isArray(x) ? x[0] : x;
+                                                this.setState({command}, this.submit);
+                                            }}>
+                                                <Text style={styles.text}>{Array.isArray(x) ? x[1] : x}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                    }
+                                </ScrollView>
+                                {!this.state.remoteConnected &&
+                                <View style={{flexDirection: 'row'}}>
+                                    {this.state.running ?
+                                        <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
+                                            this.setState({command: 'ctrl+c'}, this.submit)
+                                        }}>[ Cancel ]</Text>
+                                        :
+                                        <>
+                                            <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
+                                                const val = this.commandStore.get(true);
+                                                this.setState({command: val})
+                                            }}>[ Previous ]</Text>
+                                            <Text style={[styles.text, {paddingHorizontal: 10}]} onPress={() => {
+                                                const val = this.commandStore.get(false);
+                                                this.setState({command: val})
+                                            }}>[ Next ]</Text>
+                                        </>
+                                    }
+                                </View>
+                                }
+                                {this.state.remoteConnected &&
+                                <View style={[StyleSheet.absoluteFillObject, {backgroundColor: '#00000033'}]} pointerEvents="none" />
+                                }
+                            </KeyboardAvoidingView>
+                        </View>
                     </SafeAreaView>
                     <StatusBar backgroundColor={'black'} barStyle='light-content' translucent={false} />
                 </View>
